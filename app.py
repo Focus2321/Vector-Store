@@ -356,7 +356,7 @@ with tab_search:
             try:
                 image_bytes = query_file.read()
                 query_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-                st.image(query_img, caption="Query Image", use_column_width=True)
+                st.image(query_img, caption="Query Image", use_container_width=True)
             except Exception as e:
                 query_img = None
                 st.error(f"Invalid image: {e}")
@@ -391,7 +391,7 @@ with tab_search:
                             path, score, payload = results[idx]
                             caption = f"{payload.get('filename','')}\nCosine: {score:.4f}"
                             if path and os.path.exists(path):
-                                c.image(path, caption=caption, use_column_width=True)
+                                c.image(path, caption=caption, use_container_width=True)
                             else:
                                 c.write(caption)
                                 c.warning("Image file missing")
