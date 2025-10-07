@@ -20,7 +20,18 @@ from PIL import Image
 import streamlit as st
 
 import torch
-from dinov2.models import dinov2_vitb14
+
+# Try to import DINOv2 from the package; if unavailable, fall back to torch.hub
+try:
+    from dinov2.models import dinov2_vitb14 as _dinov2_ctor  # type: ignore
+
+    def _create_dino_model():
+        return _dinov2_ctor(pretrained=True)
+except Exception:
+    def _create_dino_model():
+        # Loads model weights from the official repo via torch.hub
+        # Requires internet access on first run; cached afterward
+        return torch.hub.load("facebookresearch/dinov2", "dinov2_vitb14")
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
@@ -66,7 +77,7 @@ with st.sidebar:
 @st.cache_resource(show_spinner=True)
 def load_model_and_device():
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = dinov2_vitb14(pretrained=True).to(device)
+    model = _create_dino_model().to(device)
     model.eval()
     return model, device
 
