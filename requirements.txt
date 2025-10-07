@@ -1,0 +1,12 @@
+# Core app
+streamlit>=1.37.0
+numpy>=1.24.0
+Pillow>=10.0.0
+qdrant-client>=1.8.0
+
+# DINOv2 model
+# Install CUDA-enabled PyTorch separately according to your GPU/driver.
+# Example (CUDA 12.1):
+#   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+# Then install dinov2 which depends on torch.
+dinov2>=0.5.0
