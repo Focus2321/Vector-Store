@@ -11,6 +11,7 @@ import io
 import os
 import time
 import hashlib
+import warnings
 from datetime import datetime
 from typing import List, Tuple
 
@@ -20,6 +21,9 @@ from PIL import Image
 import streamlit as st
 
 import torch
+
+# Suppress xFormers warnings from DINOv2
+warnings.filterwarnings("ignore", message="xFormers is not available")
 
 # Try to import DINOv2 from the package; if unavailable, fall back to torch.hub
 try:
@@ -356,7 +360,7 @@ with tab_search:
             try:
                 image_bytes = query_file.read()
                 query_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-                st.image(query_img, caption="Query Image", use_container_width=True)
+                st.image(query_img, caption="Query Image", width="stretch")
             except Exception as e:
                 query_img = None
                 st.error(f"Invalid image: {e}")
@@ -391,7 +395,7 @@ with tab_search:
                             path, score, payload = results[idx]
                             caption = f"{payload.get('filename','')}\nCosine: {score:.4f}"
                             if path and os.path.exists(path):
-                                c.image(path, caption=caption, use_container_width=True)
+                                c.image(path, caption=caption, width="stretch")
                             else:
                                 c.write(caption)
                                 c.warning("Image file missing")
