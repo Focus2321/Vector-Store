@@ -285,7 +285,7 @@ except Exception as e:
 st.title("Jewelry Image Similarity Search")
 st.caption("Upload jewelry images to build a database, then search by image using DINOv2 ViT-B/14 embeddings stored in Qdrant.")
 
-tab_db, tab_search = st.tabs(["Upload to Database", "Search by Image"])
+tab_db, tab_search, tab_gallery = st.tabs(["Upload to Database", "Search by Image", "Gallery & Manage"])
 
 
 # -----------------------------
@@ -351,7 +351,7 @@ with tab_search:
         "Upload a query image",
         type=["jpg", "jpeg", "png", "webp"],
         accept_multiple_files=False,
-        key="query_uploader",
+        key="search_query_uploader",
     )
     col1, col2 = st.columns([1, 2])
 
@@ -361,6 +361,8 @@ with tab_search:
                 image_bytes = query_file.read()
                 query_img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
                 st.image(query_img, caption="Query Image", width="stretch")
+                # Store the query image in session state to prevent re-upload issues
+                st.session_state.query_image = query_img
             except Exception as e:
                 query_img = None
                 st.error(f"Invalid image: {e}")
@@ -402,6 +404,114 @@ with tab_search:
                             idx += 1
                 else:
                     st.info("No results found.")
+
+
+# -----------------------------
+# Gallery & Manage
+# -----------------------------
+with tab_gallery:
+    st.subheader("Gallery & Manage Images")
+    
+    # Get all images from the database
+    if qdrant_ok:
+        try:
+            # Get all points from the collection
+            points, _ = qdrant_client.scroll(collection_name=collection_name, limit=1000)
+            
+            if points:
+                st.write(f"Found {len(points)} images in the database")
+                
+                # Create a grid layout for images
+                cols_per_row = 4
+                rows = (len(points) + cols_per_row - 1) // cols_per_row
+                
+                # Track selected images for deletion
+                if 'selected_images' not in st.session_state:
+                    st.session_state.selected_images = set()
+                
+                # Display images in grid
+                for row in range(rows):
+                    cols = st.columns(cols_per_row)
+                    for col_idx in range(cols_per_row):
+                        img_idx = row * cols_per_row + col_idx
+                        if img_idx >= len(points):
+                            break
+                            
+                        point = points[img_idx]
+                        payload = point.payload or {}
+                        filename = payload.get('filename', 'unknown')
+                        filepath = payload.get('filepath', os.path.join(IMAGES_DIR, filename))
+                        item_type = payload.get('type', 'unknown')
+                        timestamp = payload.get('timestamp', 'unknown')
+                        
+                        with cols[col_idx]:
+                            # Checkbox for selection
+                            is_selected = st.checkbox(
+                                f"Select {filename}",
+                                key=f"select_{img_idx}",
+                                value=img_idx in st.session_state.selected_images
+                            )
+                            
+                            if is_selected:
+                                st.session_state.selected_images.add(img_idx)
+                            else:
+                                st.session_state.selected_images.discard(img_idx)
+                            
+                            # Display image
+                            if os.path.exists(filepath):
+                                st.image(filepath, caption=filename, width="stretch")
+                            else:
+                                st.warning(f"File not found: {filename}")
+                            
+                            # Display metadata
+                            st.caption(f"Type: {item_type}")
+                            st.caption(f"Added: {timestamp[:10] if timestamp != 'unknown' else 'unknown'}")
+                
+                # Delete selected images
+                if st.session_state.selected_images:
+                    st.write(f"Selected {len(st.session_state.selected_images)} images for deletion")
+                    
+                    if st.button("Delete Selected Images", type="primary"):
+                        deleted_count = 0
+                        for img_idx in list(st.session_state.selected_images):
+                            try:
+                                point = points[img_idx]
+                                payload = point.payload or {}
+                                filename = payload.get('filename', 'unknown')
+                                filepath = payload.get('filepath', os.path.join(IMAGES_DIR, filename))
+                                
+                                # Delete from Qdrant
+                                qdrant_client.delete(
+                                    collection_name=collection_name,
+                                    points_selector=[point.id]
+                                )
+                                
+                                # Delete local file
+                                if os.path.exists(filepath):
+                                    os.remove(filepath)
+                                
+                                deleted_count += 1
+                                st.session_state.selected_images.discard(img_idx)
+                                
+                            except Exception as e:
+                                st.error(f"Error deleting {filename}: {e}")
+                        
+                        st.success(f"Deleted {deleted_count} images")
+                        st.rerun()
+                
+                # Clear selection button
+                if st.session_state.selected_images:
+                    if st.button("Clear Selection"):
+                        st.session_state.selected_images.clear()
+                        st.rerun()
+                        
+            else:
+                st.info("No images found in the database. Upload some images first!")
+                
+        except Exception as e:
+            st.error(f"Error loading gallery: {e}")
+    else:
+        st.error("Qdrant connection is not available. Please check settings.")
 
 
 # -----------------------------
